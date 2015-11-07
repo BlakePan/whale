@@ -5,6 +5,7 @@ clc;
 [filename1,pathname]=uigetfile({'*.jpg';'*.tif';'*.png'},'Select an image');
 img=imread(filename1);
 [Rows, Cols, dep] = size(img);
+imggray = rgb2gray(img);
 figure; imshow(img); title('original image');
 
 % hsv model
@@ -101,7 +102,7 @@ imgroigray = rgb2gray(imgroi);
 % Whale detector
 load('../WhaleDetectorMdl.mat');
 
-DetecImg = imgroigray;
+DetecImg = imggray; %imgroigray;
 bbox = step(WhaleDetectorMdl,DetecImg);
 detectedImg = insertObjectAnnotation(DetecImg,'rectangle',bbox,'whale');
 figure; imshow(detectedImg); title('whale detector')
