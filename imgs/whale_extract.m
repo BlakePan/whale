@@ -19,20 +19,18 @@ imghue = imgaussfilt(imghue,2);
 % figure; imshow(img); title('image hue channel after filter');
 
 % histogram
-imgpost = imghue;
 binnum = 100;
-imgpost_1d = reshape(imgpost,1,[]);
+imgpost_1d = reshape(imghue,1,[]);
 [cnt, ~] = hist(imgpost_1d,binnum);
 [~, mostind] = max(cnt);
 ratio = (max(imgpost_1d) - min(imgpost_1d))/binnum;
 backgnd = mostind*ratio + min(imgpost_1d);
 
 % background extraction
-imgbw = imgpost;
+imgbw = imghue;
 for i=1:Rows
     for j=1:Cols
-        if (imgbw(i,j) >= backgnd-0.05 && imgbw(i,j) <= backgnd+0.05)...
-            || (imgbw(i,j) > 0.8)
+        if (imgbw(i,j) >= backgnd-0.05 && imgbw(i,j) <= backgnd+0.05)
             imgbw(i,j) = 0;
         else
             imgbw(i,j) = 1;
@@ -41,14 +39,13 @@ for i=1:Rows
 end
 figure; imshow(imgbw); title('image hue channel after background extraction');
 
-% edge detection hsv after background extraction
-% imgbwedge = edge(imgbw,'Canny');
-% figure; imshow(imgbwedge); title('edge detection on image hue channel');
-
 % dilate and erode
-se = strel('line',100,90);
-imgdilate = imdilate(imgbw,se);
-se = strel('line',100,0);
+se = strel('disk',10);
+imgerode = imerode(imgbw,se);
+
+se = strel('line',130,90);
+imgdilate = imdilate(imgerode,se);
+se = strel('line',130,0);
 imgdilate = imdilate(imgdilate,se);
 figure; imshow(imgdilate); title('image hue channel dilate');
 
@@ -56,34 +53,59 @@ se = strel('disk',20);
 imgerode = imerode(imgdilate,se);
 figure; imshow(imgerode); title('image hue channel erode');
 
-% find orientation
-imgCen = regionprops(imgerode,'Centroid');
-imgOri = regionprops(imgerode,'Orientation');
-centroids = cat(1, imgCen.Centroid);
-% hold on
-% plot(centroids(:,1),centroids(:,2), 'b*')
-% hold off
-
 % find object
 L = bwlabel(imgerode,8);
 Lbin = max(max(L))+1;
 L_1d = reshape(L,1,[]);
 [cnt, ~] = hist(L_1d,Lbin);
-[~, mostind] = max(cnt(2:end));
-[r,c] = find(L == mostind); 
+[~, mostind] = max(cnt(2:end)); % index 1 of cnt indicates to '0', that means background
 
-% define boundaries
+% filter all non-object pixels
+imgbw = imgerode;
+for i=1:Rows
+    for j=1:Cols
+        if L(i,j) ~= mostind
+            imgbw(i,j) = 0;
+        end
+    end
+end
+% figure; imshow(imgbw); title('image filter all non-object pixels');
+
+% plot ellipse
+s = regionprops(imgbw, 'Orientation', 'MajorAxisLength', ...
+    'MinorAxisLength', 'Eccentricity', 'Centroid');
+PlotEllipse(s, imgbw);
+
+% img rotate
+imgbwrot = imrotate(imgbw,90-s.Orientation);
+[Rowsrot, Colsrot] = size(imgbwrot);
+figure; imshow(imgbwrot); title('bw image after rotation');
+
+% find object boundary
+L = bwlabel(imgbwrot,8);
+[r,c] = find(L == 1);
+
 roi_ext = 0;
 maxr = max(r)+roi_ext; minr = min(r)-roi_ext;
 maxc = max(c)+roi_ext; minc = min(c)-roi_ext;
-bound = [maxr, Rows];   maxr = bound((maxr>Rows)+1);
-bound = [minr, 1];      minr = bound((minr<1)+1);
-bound = [maxc, Cols];   maxc = bound((maxc>Cols)+1);
-bound = [minc, 1];   minc = bound((minc<1)+1);
+bound = [maxr, Rowsrot];    maxr = bound((maxr>Rowsrot)+1);
+bound = [minr, 1];          minr = bound((minr<1)+1);
+bound = [maxc, Colsrot];    maxc = bound((maxc>Colsrot)+1);
+bound = [minc, 1];          minc = bound((minc<1)+1);
+
+LU = [minr, minc];RU = [minr, maxc];
+LD = [maxr, minc];RD = [maxr, maxc];
+x = [LU(1), LD(1), RD(1), RU(1), LU(1)];
+y = [LU(2), LD(2), RD(2), RU(2), LU(2)];
+hold on;
+plot(y,x);
+hold off;
 
 %% feature extraction
 % extract roi
-imgroi = img(minr:maxr, minc:maxc, :);
+imgrot = imrotate(img,90-s.Orientation);
+% figure; imshow(imgrot); title('image after rotation');
+imgroi = imgrot(minr:maxr, minc:maxc, :);
 figure; imshow(imgroi); title('ROI image');
 
 % gray model
