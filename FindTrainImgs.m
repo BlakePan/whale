@@ -1,3 +1,4 @@
+% copy images which train.csv indicate to folder
 clc; clear all;
 
 % Folder setting
